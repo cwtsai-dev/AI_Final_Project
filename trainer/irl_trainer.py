@@ -15,10 +15,10 @@ from env.portfolio_env import *
 
 
 class _PPOProgressCallback(BaseCallback):
-    def __init__(self, total_timesteps, epoch, max_epochs):
+    def __init__(self, total_timesteps, epoch, max_epochs, batch, n_batches):
         super().__init__()
         self._pbar = tqdm(total=total_timesteps,
-                          desc=f"  PPO [Epoch {epoch}/{max_epochs}]",
+                          desc=f"  PPO [Epoch {epoch}/{max_epochs}, Batch {batch}/{n_batches}]",
                           unit="step", leave=False)
 
     def _on_step(self):
@@ -258,6 +258,7 @@ def train_model_and_predict(model, args, train_loader, val_loader, test_loader):
                           batch_size=args.batch_size, device=args.device)
 
         # 2. rebuild the RL env with the new reward and train the PPO agent
+        n_batches = len(train_loader)
         for batch_idx, data in enumerate(train_loader):
             corr, ts_features, features, ind, pos, neg, labels, pyg_data, mask = process_data(data, device=args.device)
             env_train = StockPortfolioEnv(
@@ -269,7 +270,8 @@ def train_model_and_predict(model, args, train_loader, val_loader, test_loader):
             env_train.seed(seed=args.seed)
             env_train, _ = env_train.get_sb_env()
             model.set_env(env_train)
-            cb = _PPOProgressCallback(total_timesteps=10000, epoch=epoch+1, max_epochs=args.max_epochs)
+            cb = _PPOProgressCallback(total_timesteps=10000, epoch=epoch+1, max_epochs=args.max_epochs,
+                                      batch=batch_idx+1, n_batches=n_batches)
             model.learn(total_timesteps=10000, callback=cb)
         trained_model = model
 
