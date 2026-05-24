@@ -18,16 +18,19 @@ docker build -t smartfolio .
 
 ---
 
-## 2. Generate market data (required before training)
+## 2. Generate preprocessed data (required before training)
 
-The preprocessed files are not in the repo. Run the one-shot builder for each market you want to use. Mount the repo as a volume so results are written back to the host.
+Raw `*_org.csv` files for all four markets are committed. The generated files — correlation matrices (`dataset/corr/{market}/`) and per-day `.pkl` samples (`dataset/data_train_predict_{market}/1_hy/`) — must be built before training.
+
+Use `gen_data/build_us_market.py` for **all four markets** (despite the name, it handles Chinese markets too — it just skips the industry step for them since `dataset/A_stock_industry_matrx.csv` is pre-committed):
 
 ```bash
+# Run from the repo root; mount the volume so output is written back to the host
 docker run --rm --gpus all -v "$(pwd)":/app smartfolio \
     bash -c "cd gen_data && python build_us_market.py hs300"
 ```
 
-Repeat for any other markets (`zz500`, `nd100`, `sp500`), or run all four at once:
+Repeat for each market you want to use:
 
 ```bash
 docker run --rm --gpus all -v "$(pwd)":/app -it smartfolio bash
@@ -36,7 +39,13 @@ cd gen_data
 for mkt in hs300 zz500 nd100 sp500; do python build_us_market.py $mkt; done
 ```
 
-For each market this builds: the industry graph, monthly correlation matrices (`dataset/corr/{market}/`), and per-day `.pkl` samples (`dataset/data_train_predict_{market}/1_hy/`).
+**What each step does per market:**
+
+| Step | hs300 / zz500 (China) | nd100 / sp500 (US) |
+|---|---|---|
+| Industry graph | Skipped — slices pre-committed `dataset/A_stock_industry_matrx.csv` | Builds `dataset/{market}/industry.npy` from `dataset/us_sectors.csv` (binary GICS-sector matrix) |
+| Correlation matrices | `dataset/corr/{market}/*.csv` (monthly Pearson) | Same |
+| Per-day samples | `dataset/data_train_predict_{market}/1_hy/*.pkl` | Same |
 
 ---
 
@@ -86,16 +95,16 @@ At the end of the test episode it prints:
 
 Results are written to `results/` (persisted to the host only if you mounted the volume):
 
-- **`results/summary.csv`** — one row appended per run with config and all metrics. This is the master table to compare runs.
+- **`results/summary.csv`** — one row appended per run with config and all metrics.
 - **`results/{market}_{policy}_{timestamp}_equity.csv`** — full equity curve for that run.
 
 ---
 
 ## 5. Ablation studies (paper Table 2)
 
-Ablation toggles are CLI flags taking `y`/`n` (default `y` = full model). Run from an interactive shell or substitute into a full `docker run` command:
+Ablation toggles are CLI flags taking `y`/`n` (default `y` = full model):
 
-| Configuration | Command (inside container) |
+| Configuration | Command |
 |---|---|
 | Full model (graph policy) | `python main.py -mkt hs300 -p HGAT` |
 | w/o reward network / multi-objective reward | `python main.py -mkt hs300 -mr n` |
@@ -103,12 +112,4 @@ Ablation toggles are CLI flags taking `y`/`n` (default `y` = full model). Run fr
 | w/o correlation control | `python main.py -mkt hs300 -pos n -neg n` |
 | w/o HGAT (use MLP) | `python main.py -mkt hs300 -p MLP` |
 
-> Note: the policy **defaults to `-p MLP`**, so the paper's "Full Model" requires explicitly passing `-p HGAT`. Training length, dates, batch size, and seed are fixed in the debug block of `main.py` — edit there to change them.
-
----
-
-## 6. Known limitations
-
-- **Information Ratio (IR) reports 0.** It needs benchmark index daily-return series at `dataset/index_data/{market}_index_2024.csv`, which are not included. All other metrics work without them.
-- **Only SmartFolio is implemented.** The paper's baseline models (LSTM, Transformer, AlphaStock, DeepTrader, GPT4TS, TIME-LLM, etc.) are not in this repo, so the head-to-head comparison (Table 1) cannot be reproduced here — only this method and its ablations.
-- **Some details diverge from the paper** (e.g. the synthetic expert ranks by forward returns; Chinese industry graphs are graded rather than binary). See `CLAUDE.md` for the full list.
+> Note: the policy **defaults to `-p MLP`**, so the paper's "Full Model" requires explicitly passing `-p HGAT`. Training length, dates, batch size, and seed are fixed in the `main.py` debug block — edit there to change them.
