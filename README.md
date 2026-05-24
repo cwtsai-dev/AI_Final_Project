@@ -22,21 +22,24 @@ docker build -t smartfolio .
 
 Raw `*_org.csv` files for all four markets are committed. The generated files — correlation matrices (`dataset/corr/{market}/`) and per-day `.pkl` samples (`dataset/data_train_predict_{market}/1_hy/`) — must be built before training.
 
-Use `gen_data/build_us_market.py` for **all four markets** (despite the name, it handles Chinese markets too — it just skips the industry step for them since `dataset/A_stock_industry_matrx.csv` is pre-committed):
-
+**hs300 (CSI 300):**
 ```bash
-# Run from the repo root; mount the volume so output is written back to the host
-docker run --rm --gpus all -v "$(pwd)":/app smartfolio \
-    bash -c "cd gen_data && python build_us_market.py hs300"
+docker run --rm --gpus all -v "$(pwd)":/app smartfolio bash -c "cd gen_data && python build_market.py hs300"
 ```
 
-Repeat for each market you want to use:
-
+**zz500 (CSI 500):**
 ```bash
-docker run --rm --gpus all -v "$(pwd)":/app -it smartfolio bash
-# inside the container:
-cd gen_data
-for mkt in hs300 zz500 nd100 sp500; do python build_us_market.py $mkt; done
+docker run --rm --gpus all -v "$(pwd)":/app smartfolio bash -c "cd gen_data && python build_market.py zz500"
+```
+
+**nd100 (NASDAQ 100):**
+```bash
+docker run --rm --gpus all -v "$(pwd)":/app smartfolio bash -c "cd gen_data && python build_market.py nd100"
+```
+
+**sp500 (S&P 500):**
+```bash
+docker run --rm --gpus all -v "$(pwd)":/app smartfolio bash -c "cd gen_data && python build_market.py sp500"
 ```
 
 **What each step does per market:**
