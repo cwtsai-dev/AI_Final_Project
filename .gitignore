@@ -1,0 +1,20 @@
+# Generated dataset files (rebuild with gen_data/build_us_market.py)
+dataset/corr/
+dataset/daily_stock_*/
+dataset/data_train_predict_*/
+dataset/nd100/
+dataset/sp500/
+dataset/index_data/
+
+# Training outputs
+results/
+logs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.idea/
+*.swp

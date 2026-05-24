@@ -1,0 +1,22 @@
+# Scientific stack (kept old enough to stay compatible with torch 1.12 / gym 0.21)
+numpy==1.23.5
+pandas==1.5.3
+scikit-learn==1.1.3
+networkx==2.8.8
+tqdm==4.66.1
+
+# RL: legacy gym API (reset()->obs, step()->4-tuple) matched to Stable-Baselines3 1.x
+gym==0.21.0
+stable-baselines3==1.6.2
+importlib-metadata==4.13.0   # gym 0.21 fails to import with importlib-metadata >= 5.0
+tensorboard==2.11.2          # PPO_PARAMS sets tensorboard_log="./logs"
+
+# Graph library: 2.0.4 still exposes torch_geometric.data.DataLoader used in irl_trainer.py
+torch-geometric==2.0.4
+
+# NOTE: torch, torch-scatter and torch-sparse are NOT listed here because they
+# must be installed from dedicated index URLs (see Dockerfile). If installing
+# locally without Docker (GPU / CUDA 11.3), run:
+#   pip install torch==1.12.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
+#   pip install torch-scatter==2.0.9 torch-sparse==0.6.15 -f https://data.pyg.org/whl/torch-1.12.1+cu113.html
+# For a CPU-only install, swap "cu113" -> "cpu" in both lines above.
