@@ -1,14 +1,32 @@
 import os
+import time
 import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 from torch_geometric.data import DataLoader
+from tqdm import tqdm
 
 from env.portfolio_env import *
+
+
+class _PPOProgressCallback(BaseCallback):
+    def __init__(self, total_timesteps, epoch, max_epochs):
+        super().__init__()
+        self._pbar = tqdm(total=total_timesteps,
+                          desc=f"  PPO [Epoch {epoch}/{max_epochs}]",
+                          unit="step", leave=False)
+
+    def _on_step(self):
+        self._pbar.update(1)
+        return True
+
+    def _on_training_end(self):
+        self._pbar.close()
 
 
 class RewardNetwork(nn.Module):
@@ -231,11 +249,13 @@ def train_model_and_predict(model, args, train_loader, val_loader, test_loader):
     # --- train: alternate IRL reward optimization and PPO policy for max_epochs rounds ---
     env_train = create_env_init(args, data_loader=train_loader)
     trained_model = model
-    for epoch in range(args.max_epochs):
+    epoch_bar = tqdm(range(args.max_epochs), desc="Training", unit="epoch")
+    for epoch in epoch_bar:
+        t0 = time.time()
+
         # 1. train the IRL reward network (one gradient pass per round)
         irl_trainer.train(env_train, model, num_epochs=1,
                           batch_size=args.batch_size, device=args.device)
-        print(f"[Epoch {epoch + 1}/{args.max_epochs}] reward net updated.")
 
         # 2. rebuild the RL env with the new reward and train the PPO agent
         for batch_idx, data in enumerate(train_loader):
@@ -249,12 +269,14 @@ def train_model_and_predict(model, args, train_loader, val_loader, test_loader):
             env_train.seed(seed=args.seed)
             env_train, _ = env_train.get_sb_env()
             model.set_env(env_train)
-            model.learn(total_timesteps=10000)
+            cb = _PPOProgressCallback(total_timesteps=10000, epoch=epoch+1, max_epochs=args.max_epochs)
+            model.learn(total_timesteps=10000, callback=cb)
         trained_model = model
 
         # 3. evaluate the current policy
         mean_reward, std_reward = evaluate_policy(model, env_train, n_eval_episodes=1)
-        print(f"[Epoch {epoch + 1}/{args.max_epochs}] mean reward: {mean_reward}")
+        elapsed = time.time() - t0
+        epoch_bar.set_postfix(reward=f"{mean_reward:.4f}", elapsed=f"{elapsed:.0f}s")
 
     # --- predict: evaluate the final model on the test set ---
     model_predict(args, trained_model, test_loader)
